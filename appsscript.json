@@ -1,0 +1,15 @@
+{
+  "timeZone": "Europe/London",
+  "dependencies": {
+    "libraries": [{
+      "userSymbol": "cSAM",
+      "libraryId": "1wYuya4Vchqa8Ovl0MYSxYwKM8ZjiGFqO5NUo_KzGi-GPMT-HfDEJ6i3k",
+      "version": "3"
+    }, {
+      "userSymbol": "Assert",
+      "libraryId": "1R-rxUHuQU0ez95FlZz9fxqifbYFszHnukqzv_3Uk5zM3eG4eRBrh_E1M",
+      "version": "13"
+    }]
+  },
+  "exceptionLogging": "STACKDRIVER"
+}
