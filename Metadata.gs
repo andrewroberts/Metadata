@@ -37,7 +37,7 @@
 // -------------
 
 var SCRIPT_NAME    = "Metadata"
-var SCRIPT_VERSION = "v1.1"
+var SCRIPT_VERSION = "v1.1.dev_ajr"
 
 // Private Config
 // --------------
@@ -159,9 +159,9 @@ var Metadata_ = (function(ns) {
           // DeveloperMetaDataLocation with column scope  
           metadataKey: key,
           metadataValue: JSON.stringify({
-              writtenBy:Session.getActiveUser().getEmail(),
-              createdAt:new Date().getTime()
-            }),
+            writtenBy:Session.getActiveUser().getEmail(),
+            createdAt:new Date().getTime()
+          }),
           location: {  
             dimensionRange: {
               sheetId:sheet.getSheetId(),
@@ -252,7 +252,13 @@ var Metadata_ = (function(ns) {
     var startIndex = -1
 
     if (tidied.length !== 0) {
-    
+
+
+tidied.forEach(function(data) {
+  Logger.log(data)
+})
+
+
       if (tidied.length > 1) {
         ns.log.warning('Using the first column meta data (of ' + tidied.length + ') for "' + key + '"')
       }
@@ -347,125 +353,7 @@ var Metadata_ = (function(ns) {
     }
     
   } // Metadata_.removeAll()  
-  
-//  /**
-//   * Get the index (0-based) of this column
-//   *
-//   * First check if we can get it from column meta data, if not look in 
-//   * the header row for the column name
-//   *
-//   * @param {Object} 
-//   *   {Sheet} sheet
-//   *   {string} columnName
-//   *   {Array} headers [OPTIONAL, DEFAULT - got from row 1]
-//   *   {boolean} required [OPTIONAL, DEFAULT = true]
-//   *   {Boolean} useMeta [OPTIONAL, DEFAULT = true]
-//   *
-//   * @return {number} column index or -1
-//   */
-//    
-//  function getColumnIndex(config) {
-//      
-//    ns.log.functionEntryPoint()
-//    
-//    var sheet = config.sheet
-//    var columnName = config.columnName
-//    var headers = config.headers
-//    
-//    var required
-//    
-//    if (typeof config.required === 'undefined' || config.required) {
-//      required = true
-//    } else {
-//      required = false
-//    }
-//    
-//    var useMeta
-//    
-//    if (typeof config.useMeta === 'undefined' || config.useMeta) {
-//      useMeta = true
-//    } else {
-//      useMeta = false
-//    }
-//  
-//    ns.log.fine('columnName: %s', columnName)
-//    ns.log.fine('headers: %s', headers)
-//    ns.log.fine('required: %s', required)
-//    ns.log.fine('useMeta: %s', useMeta)
-//    
-//    var columnIndex = -1
-//    
-//    if (useMeta) {
-//    
-//      // First check if we can get it from column meta data
-//      
-//      columnIndex = MetaData_.getColumnIndex(sheet, columnName)
-//    }
-//    
-//    if (columnIndex === -1) {
-//      
-//      // Next try from the header
-//      
-//      if (typeof headers === 'undefined') {
-//        headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-//      }
-//      
-//      columnIndex = headers.indexOf(columnName)
-//      
-//      if (columnIndex === -1) {
-//      
-//        if (columnName === TASK_LIST_COLUMNS.TIMESTAMP) {
-//        
-//          // There may have been an old version where it was renamed to "Listed"
-//          columnIndex = headers.indexOf("Listed")
-//          
-//        } else if (columnName === TASK_LIST_COLUMNS.ID) {
-//        
-//          // Sometimes the 'ID' column header is accidentally deleted
-//          if (sheet.getRange('A1').getValue() === '') {        
-//            columnIndex = 0
-//          }
-//          
-//        } else if (columnName === TASK_LIST_COLUMNS.SUBJECT) {
-//        
-//          // These are used to be a regular error, so hard-coded (I'm that kinda guy!)
-//          
-//          columnIndex = headers.indexOf('Type of Service Request')
-//          
-//          if (columnIndex === -1) {
-//            columnIndex = headers.indexOf('Комментарий')
-//          }
-//        }
-//      }
-//      
-//      if (columnIndex !== -1) { 
-//      
-//        if (useMeta) {
-//      
-//          // Store meta data for this column in case it does get moved or renamed
-//          ns.add(sheet, columnName, columnIndex, ) 
-//        }
-//        
-//        ns.log.fine('columnIndex from headers: ' + columnIndex) 
-//      }
-//    }
-//    
-//    if (columnIndex === -1) {
-//      
-//      if (required) {
-//        
-//        Utils_.throwNoColumnError(columnName, headers)
-//        
-//      } else {
-//        
-//        ns.log.warning('No "' + columnName + '" column. Found: ' + JSON.stringify(headers))
-//      }
-//    }
-//    
-//    return columnIndex
-//    
-//  } // Metadata_.getColumnIndex()
-  
+    
   return ns
     
 }) (Metadata_ || {})
