@@ -37,7 +37,7 @@
 // -------------
 
 var SCRIPT_NAME    = "Metadata"
-var SCRIPT_VERSION = "v1.1.dev_ajr"
+var SCRIPT_VERSION = "v1.2"
 
 // Private Config
 // --------------
@@ -123,7 +123,7 @@ var Metadata_ = (function(ns) {
     ns.log.functionEntryPoint()    
     return Object.create(this)
     
-  } // Subs_.load()
+  } // Metadata_.load()
 
   /**
    * Add some meta data to a GSheet column
@@ -182,7 +182,7 @@ var Metadata_ = (function(ns) {
     var result = Sheets.Spreadsheets.batchUpdate({requests:requests}, spreadsheetId)
     return result
   
-  } // Metadata_.addMetaData()
+  } // Metadata_.add()
     
   /**
    * Get some meta data from a GSheet
@@ -191,7 +191,7 @@ var Metadata_ = (function(ns) {
    * @param {String} key 
    * @param {String} spreadsheetId (optional, default - parent of sheet)   
    * 
-   * @return {Object} result
+   * @return {Object} result or null
    */
 
   ns.get = function(sheet, key, spreadsheetId) {
@@ -207,21 +207,12 @@ var Metadata_ = (function(ns) {
       spreadsheetId = sheet.getParent().getId()
     }
     
-    var meta
+    var meta = cSAM.SAM.searchByKey(spreadsheetId, key)
     
-    try {
-    
-      meta = cSAM.SAM.searchByKey(spreadsheetId, key)
-    
-    } catch (error) {
-    
-      if (error.name === 'GoogleJsonResponseException') {
-        
-        ns.log.fine('The Sheets API cant be accessed')
-        return []
-      }   
+    if (meta === null) {
+      return null
     }
-
+    
     var tidied = cSAM.SAM.tidyMatched(meta)
     
     if (tidied.length === 0) {
@@ -235,7 +226,38 @@ var Metadata_ = (function(ns) {
   } // Metadata_.get()
 
   /**
-   * Get a column's index 
+   * Get all the column metadata for a spreadsheet
+   *
+   * @param {String} spreadsheetId (optional, default - active)   
+   * 
+   * @return {Object} tidied
+   */
+
+  ns.getAllColumns = function(spreadsheetId) {
+
+    ns.log.functionEntryPoint()
+    ns.log.fine('spreadsheetId: ' + spreadsheetId)
+    
+    if (spreadsheetId === undefined) {
+      spreadsheetId = SpreadsheetApp.getActive().getId()
+    }
+
+    var meta = Sheets.Spreadsheets.DeveloperMetadata.search({
+      dataFilters: {
+        developerMetadataLookup: {
+          locationType: 'COLUMN'
+        }
+      }}, 
+      spreadsheetId)
+      
+    var tidied = cSAM.SAM.tidyMatched(meta) 
+    
+    return tidied
+      
+  } // Metadata_.getAllColumns()
+
+  /**
+   * Get a column's start index 
    *
    * @param {Sheet} sheet
    * @param {String} key The header name of the column (row 1)
@@ -249,15 +271,14 @@ var Metadata_ = (function(ns) {
     ns.log.functionEntryPoint()
 
     var tidied = ns.get(sheet, key, spreadsheetId)
+    
+    if (tidied === null) {
+      return -1
+    }
+    
     var startIndex = -1
 
     if (tidied.length !== 0) {
-
-
-tidied.forEach(function(data) {
-  Logger.log(data)
-})
-
 
       if (tidied.length > 1) {
         ns.log.warning('Using the first column meta data (of ' + tidied.length + ') for "' + key + '"')
@@ -278,7 +299,7 @@ tidied.forEach(function(data) {
   /**
    * Remove some meta data from a GSheet
    *
-   * @param {Sheet} sheet
+   * @param {Sheet} sheet (optional if spreadsheetId defined)
    * @param {String} key 
    * @param {String} spreadsheetId (optional, default - parent of sheet)      
    * 
@@ -290,7 +311,6 @@ tidied.forEach(function(data) {
     ns.log.functionEntryPoint()
 
     var callingfunction = 'Metadata_.remove()'
-    Assert.assertObject(sheet, callingfunction, 'Bad "sheet" type')
     Assert.assertString(key, callingfunction, 'key not a string')
 
     // Get all the things and delete them in one go
@@ -316,7 +336,7 @@ tidied.forEach(function(data) {
   /**
    * Remove all the meta data from a GSheet
    *
-   * @param {Sheet} sheet
+   * @param {Sheet} sheet (optional if spreadsheetId defined)
    * @param {Object} columns - A list of column names
    * @param {String} spreadsheetId (optional, default - parent of sheet)   
    */
@@ -326,7 +346,7 @@ tidied.forEach(function(data) {
     ns.log.functionEntryPoint()
 
     var callingfunction = 'Metadata_.removeAll()'
-    Assert.assertObject(sheet, callingfunction, 'Bad "sheet" type')
+    Assert.assertObject(columns, callingfunction, 'Bad "columns" type')
     
     if (spreadsheetId === undefined) {
       spreadsheetId = sheet.getParent().getId()
