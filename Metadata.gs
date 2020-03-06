@@ -2,6 +2,7 @@
 
 // JSHint - 20171110
 /* jshint asi: true */
+// Script version: 1.1 Local build
 
 (function() {"use strict"})()
 
@@ -37,7 +38,7 @@
 // -------------
 
 var SCRIPT_NAME    = "Metadata"
-var SCRIPT_VERSION = "v1.0"
+var SCRIPT_VERSION = "v1.2"
 
 // Private Config
 // --------------
@@ -100,7 +101,7 @@ function load(config) {
 // Private Code
 // ------------
 
-var Metadata_ = (function myFunction(ns) {
+var Metadata_ = (function(ns) {
 
   ns.log         = null
 
@@ -123,7 +124,7 @@ var Metadata_ = (function myFunction(ns) {
     ns.log.functionEntryPoint()    
     return Object.create(this)
     
-  } // Subs_.load()
+  } // Metadata_.load()
 
   /**
    * Add some meta data to a GSheet column
@@ -131,11 +132,12 @@ var Metadata_ = (function myFunction(ns) {
    * @param {Sheet} sheet
    * @param {String} key The header name of the column (row 1)
    * @param {Number} startIndex 0-based index
+   * @param {String} spreadsheetId (optional, default - parent of sheet)
    * 
    * @return {Object} result
    */
      
-  ns.add = function(sheet, key, startIndex) {
+  ns.add = function(sheet, key, startIndex, spreadsheetId) {
 
     ns.log.functionEntryPoint()
     
@@ -158,9 +160,9 @@ var Metadata_ = (function myFunction(ns) {
           // DeveloperMetaDataLocation with column scope  
           metadataKey: key,
           metadataValue: JSON.stringify({
-              writtenBy:Session.getActiveUser().getEmail(),
-              createdAt:new Date().getTime()
-            }),
+            writtenBy:Session.getActiveUser().getEmail(),
+            createdAt:new Date().getTime()
+          }),
           location: {  
             dimensionRange: {
               sheetId:sheet.getSheetId(),
@@ -174,22 +176,26 @@ var Metadata_ = (function myFunction(ns) {
       }
     }]
     
-    var spreadsheetId = sheet.getParent().getId()
+    if (spreadsheetId === undefined) {
+      spreadsheetId = sheet.getParent().getId()
+    }
+    
     var result = Sheets.Spreadsheets.batchUpdate({requests:requests}, spreadsheetId)
     return result
   
-  } // Metadata_.addMetaData()
+  } // Metadata_.add()
     
   /**
    * Get some meta data from a GSheet
    *
    * @param {Sheet} sheet
    * @param {String} key 
+   * @param {String} spreadsheetId (optional, default - parent of sheet)   
    * 
-   * @return {Object} result
+   * @return {Object} result or null
    */
 
-  ns.get = function(sheet, key) {
+  ns.get = function(sheet, key, spreadsheetId) {
   
     ns.log.functionEntryPoint()
     ns.log.fine('key: ' + key)
@@ -198,22 +204,16 @@ var Metadata_ = (function myFunction(ns) {
     Assert.assertObject(sheet, callingfunction, 'Bad "sheet" type')
     Assert.assertString(key, callingfunction, 'key not a string')
 
-    var spreadsheetId = sheet.getParent().getId()
-    var meta
-    
-    try {
-    
-      meta = cSAM.SAM.searchByKey(spreadsheetId, key)
-    
-    } catch (error) {
-    
-      if (error.name === 'GoogleJsonResponseException') {
-        
-        ns.log.fine('The Sheets API cant be accessed')
-        return []
-      }   
+    if (spreadsheetId === undefined) {
+      spreadsheetId = sheet.getParent().getId()
     }
-
+    
+    var meta = cSAM.SAM.searchByKey(spreadsheetId, key)
+    
+    if (meta === null) {
+      return null
+    }
+    
     var tidied = cSAM.SAM.tidyMatched(meta)
     
     if (tidied.length === 0) {
@@ -227,23 +227,60 @@ var Metadata_ = (function myFunction(ns) {
   } // Metadata_.get()
 
   /**
-   * Get a column's index 
+   * Get all the column metadata for a spreadsheet
+   *
+   * @param {String} spreadsheetId (optional, default - active)   
+   * 
+   * @return {Object} tidied
+   */
+
+  ns.getAllColumns = function(spreadsheetId) {
+
+    ns.log.functionEntryPoint()
+    ns.log.fine('spreadsheetId: ' + spreadsheetId)
+    
+    if (spreadsheetId === undefined) {
+      spreadsheetId = SpreadsheetApp.getActive().getId()
+    }
+
+    var meta = Sheets.Spreadsheets.DeveloperMetadata.search({
+      dataFilters: {
+        developerMetadataLookup: {
+          locationType: 'COLUMN'
+        }
+      }}, 
+      spreadsheetId)
+      
+    var tidied = cSAM.SAM.tidyMatched(meta) 
+    
+    return tidied
+      
+  } // Metadata_.getAllColumns()
+
+  /**
+   * Get a column's start index 
    *
    * @param {Sheet} sheet
    * @param {String} key The header name of the column (row 1)
+   * @param {String} spreadsheetId (optional, default - parent of sheet)         
    * 
    * @return {Number} startIndex 0-based or -1
    */
 
-  ns.getColumnIndex = function(sheet, key) {
+  ns.getColumnIndex = function(sheet, key, spreadsheetId) {
 
     ns.log.functionEntryPoint()
 
-    var tidied = ns.get(sheet, key)
+    var tidied = ns.get(sheet, key, spreadsheetId)
+    
+    if (tidied === null) {
+      return -1
+    }
+    
     var startIndex = -1
 
     if (tidied.length !== 0) {
-    
+
       if (tidied.length > 1) {
         ns.log.warning('Using the first column meta data (of ' + tidied.length + ') for "' + key + '"')
       }
@@ -263,18 +300,18 @@ var Metadata_ = (function myFunction(ns) {
   /**
    * Remove some meta data from a GSheet
    *
-   * @param {Sheet} sheet
+   * @param {Sheet} sheet (optional if spreadsheetId defined)
    * @param {String} key 
+   * @param {String} spreadsheetId (optional, default - parent of sheet)      
    * 
    * @return {Object} result
    */
   
-  ns.remove = function(sheet, key) {
+  ns.remove = function(sheet, key, spreadsheetId) {
 
     ns.log.functionEntryPoint()
 
     var callingfunction = 'Metadata_.remove()'
-    Assert.assertObject(sheet, callingfunction, 'Bad "sheet" type')
     Assert.assertString(key, callingfunction, 'key not a string')
 
     // Get all the things and delete them in one go
@@ -288,7 +325,10 @@ var Metadata_ = (function myFunction(ns) {
       }
     }]
   
-    var spreadsheetId = sheet.getParent().getId()
+    if (spreadsheetId === undefined) {
+      spreadsheetId = sheet.getParent().getId()
+    }
+    
     var result = Sheets.Spreadsheets.batchUpdate({requests:requests}, spreadsheetId);
     return result
     
@@ -297,19 +337,22 @@ var Metadata_ = (function myFunction(ns) {
   /**
    * Remove all the meta data from a GSheet
    *
-   * @param {Sheet} sheet
+   * @param {Sheet} sheet (optional if spreadsheetId defined)
    * @param {Object} columns - A list of column names
+   * @param {String} spreadsheetId (optional, default - parent of sheet)   
    */
   
-  ns.removeAll = function(sheet, columns) {
+  ns.removeAll = function(sheet, columns, spreadsheetId) {
 
     ns.log.functionEntryPoint()
 
     var callingfunction = 'Metadata_.removeAll()'
-    Assert.assertObject(sheet, callingfunction, 'Bad "sheet" type')
+    Assert.assertObject(columns, callingfunction, 'Bad "columns" type')
     
-    var spreadsheetId = sheet.getParent().getId()
-    
+    if (spreadsheetId === undefined) {
+      spreadsheetId = sheet.getParent().getId()
+    }
+        
     for (var key in columns) {
 
       if (columns.hasOwnProperty(key)) {
@@ -331,125 +374,7 @@ var Metadata_ = (function myFunction(ns) {
     }
     
   } // Metadata_.removeAll()  
-  
-  /**
-   * Get the index (0-based) of this column
-   *
-   * First check if we can get it from column meta data, if not look in 
-   * the header row for the column name
-   *
-   * @param {Object} 
-   *   {Sheet} sheet
-   *   {string} columnName
-   *   {Array} headers [OPTIONAL, DEFAULT - got from row 1]
-   *   {boolean} required [OPTIONAL, DEFAULT = true]
-   *   {Boolean} useMeta [OPTIONAL, DEFAULT = true]
-   *
-   * @return {number} column index or -1
-   */
     
-  function getColumnIndex(config) {
-      
-    ns.log.functionEntryPoint()
-    
-    var sheet = config.sheet
-    var columnName = config.columnName
-    var headers = config.headers
-    
-    var required
-    
-    if (typeof config.required === 'undefined' || config.required) {
-      required = true
-    } else {
-      required = false
-    }
-    
-    var useMeta
-    
-    if (typeof config.useMeta === 'undefined' || config.useMeta) {
-      useMeta = true
-    } else {
-      useMeta = false
-    }
-  
-    ns.log.fine('columnName: %s', columnName)
-    ns.log.fine('headers: %s', headers)
-    ns.log.fine('required: %s', required)
-    ns.log.fine('useMeta: %s', useMeta)
-    
-    var columnIndex = -1
-    
-    if (useMeta) {
-    
-      // First check if we can get it from column meta data
-      
-      columnIndex = MetaData_.getColumnIndex(sheet, columnName)
-    }
-    
-    if (columnIndex === -1) {
-      
-      // Next try from the header
-      
-      if (typeof headers === 'undefined') {
-        headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-      }
-      
-      columnIndex = headers.indexOf(columnName)
-      
-      if (columnIndex === -1) {
-      
-        if (columnName === TASK_LIST_COLUMNS.TIMESTAMP) {
-        
-          // There may have been an old version where it was renamed to "Listed"
-          columnIndex = headers.indexOf("Listed")
-          
-        } else if (columnName === TASK_LIST_COLUMNS.ID) {
-        
-          // Sometimes the 'ID' column header is accidentally deleted
-          if (sheet.getRange('A1').getValue() === '') {        
-            columnIndex = 0
-          }
-          
-        } else if (columnName === TASK_LIST_COLUMNS.SUBJECT) {
-        
-          // These are used to be a regular error, so hard-coded (I'm that kinda guy!)
-          
-          columnIndex = headers.indexOf('Type of Service Request')
-          
-          if (columnIndex === -1) {
-            columnIndex = headers.indexOf('Комментарий')
-          }
-        }
-      }
-      
-      if (columnIndex !== -1) { 
-      
-        if (useMeta) {
-      
-          // Store meta data for this column in case it does get moved or renamed
-          ns.add(sheet, columnName, columnIndex) 
-        }
-        
-        ns.log.fine('columnIndex from headers: ' + columnIndex) 
-      }
-    }
-    
-    if (columnIndex === -1) {
-      
-      if (required) {
-        
-        Utils_.throwNoColumnError(columnName, headers)
-        
-      } else {
-        
-        ns.log.warning('No "' + columnName + '" column. Found: ' + JSON.stringify(headers))
-      }
-    }
-    
-    return columnIndex
-    
-  } // Metadata_.getColumnIndex()
-  
   return ns
     
 }) (Metadata_ || {})
